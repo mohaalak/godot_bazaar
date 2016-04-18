@@ -29,7 +29,7 @@ public class GodotBazaar extends Godot.SingletonBase {
     int callbackId;
     Activity activity;
     String payload;    
-    
+    Stringp[] consumables;
     
     static public Godot.SingletonBase initialize(Activity p_activity) {
 
@@ -42,16 +42,15 @@ public class GodotBazaar extends Godot.SingletonBase {
     }
 
     IabHelper.OnConsumeFinishedListener mConsumeFinishedListener =
-    new IabHelper.OnConsumeFinishedListener() {
-    public void onConsumeFinished(Purchase purchase, IabResult result) {
-    if (result.isSuccess()) {
-    // provision the in-app purchase to the user
-    // (for example, credit 50 gold coins to player's character)
-    }
-    else {
-    // handle error
-    }
-    }
+        new IabHelper.OnConsumeFinishedListener() {
+        public void onConsumeFinished(Purchase purchase, IabResult result) {
+                if (result.isSuccess()) {
+                    call_purchase_success(purchase.toString);
+                }   
+                else {
+                    call_error(result.getMessage());
+                }
+        }
     };
     IabHelper.QueryInventoryFinishedListener mGotInventoryListener = new IabHelper.QueryInventoryFinishedListener() {
         public void onQueryInventoryFinished(IabResult result, Inventory inventory) {
@@ -120,6 +119,7 @@ public class GodotBazaar extends Godot.SingletonBase {
     {
         GodotLib.calldeferred(callbackId, "purchase_success", new Object[]{message});   
     }
+
     public void call_error(String message)
     {
         GodotLib.calldeferred(callbackId, "error", new Object[]{message});
@@ -151,7 +151,15 @@ public class GodotBazaar extends Godot.SingletonBase {
                 call_error("{\"status\":\"300\",\"message\":\"Error purchasing. Authenticity verification failed.\"");
                 return;
             }
-
+            for(int i = 0 ; i<consumables.length();i++)
+            {
+                if(purchase.getSku().equals(consumables[i]))
+                {
+                    mHelper.consumeAsync(purchase,mConsumeFinishedListener);
+                    break ;
+                    return;
+                }
+            }
             call_purchase_success(purchase.toString());
 
             
@@ -160,10 +168,11 @@ public class GodotBazaar extends Godot.SingletonBase {
     };
 
 
-    public void init(String base64EncodedPublicKey,int callid)
+    public void init(String base64EncodedPublicKey,int callid,String[] _consumables)
     {
         this.callbackId = callid;
         mHelper = new IabHelper(activity, base64EncodedPublicKey);
+        consumables = _consumables;
         mHelper.startSetup(new IabHelper.OnIabSetupFinishedListener() {
             public void onIabSetupFinished(IabResult result) {
 
