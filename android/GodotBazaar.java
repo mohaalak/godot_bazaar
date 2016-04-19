@@ -1,4 +1,4 @@
-package com.android.godot;
+package org.godotengine.godot;
 
 import android.app.Activity;
 import android.app.AlertDialog;
