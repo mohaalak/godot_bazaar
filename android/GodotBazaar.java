@@ -1,24 +1,18 @@
-package org.godotengine.godot;
+
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.os.Bundle;
 import android.util.Log;
-import android.view.View;
-import android.widget.ImageView;
-import android.app.Activity;
-import android.os.Bundle;
+
+
+import org.godotengine.godot.Dictionary;
+import org.godotengine.godot.Godot;
+import org.godotengine.godot.GodotLib;
+import org.json.JSONException;
 
 import java.util.Iterator;
 
 import javax.microedition.khronos.opengles.GL10;
-
-import com.android.godot.IabHelper;
-import com.android.godot.IabResult;
-import com.android.godot.Inventory;
-import com.android.godot.Purchase;
 
 
 
@@ -28,9 +22,8 @@ public class GodotBazaar extends Godot.SingletonBase {
     IabHelper mHelper;
     int callbackId;
     Activity activity;
-    String payload;    
-    Stringp[] consumables;
-    
+    String payload;
+
     static public Godot.SingletonBase initialize(Activity p_activity) {
 
                 return new GodotBazaar(p_activity);
@@ -38,14 +31,105 @@ public class GodotBazaar extends Godot.SingletonBase {
 
     public GodotBazaar(Activity p_activity) {
         this.activity = p_activity;
-       registerClass("Bazaar", new String[]{"init","purchase","getInventory"});
+       registerClass("Bazaar", new String[]{"init", "purchase", "get_inventory", "consume"});
     }
 
+
+    public void init(int callid)
+    {
+
+        String base64EncodedPublicKey = GodotLib.getGlobal("bazaar/key");
+
+        this.callbackId = callid;
+        mHelper = new IabHelper(activity, base64EncodedPublicKey);
+
+        mHelper.startSetup(new IabHelper.OnIabSetupFinishedListener() {
+            public void onIabSetupFinished(IabResult result) {
+
+                if (!result.isSuccess()) {
+                    call_error("{\"status\":\"300\",\"message\":\"Problem setting up in-app billing: " + result.getMessage() + "\"");
+                    return;
+                }
+
+                if (mHelper == null) return;
+
+                ready();
+            }
+        });
+
+    }
+
+    public void purchase(final String sku)
+    {
+
+        this.payload = Math.random()+"NEGAHNAKON"+ Math.random();
+        final String temppay = this.payload;
+        activity.runOnUiThread(new Runnable() {
+
+            @Override
+            public void run() {
+                // TODO Auto-generated method stub
+                if (mHelper != null) mHelper.flagEndAsync();
+                mHelper.launchPurchaseFlow(activity, sku, 1001,
+                        mPurchaseFinishedListener, temppay);
+            }
+        });
+
+    }
+    public void get_inventory() {
+        activity.runOnUiThread(new Runnable() {
+
+            @Override
+            public void run() {
+                if (! mHelper.mAsyncInProgress)
+                    mHelper.queryInventoryAsync(mGotInventoryListener);
+            }
+        });
+    }
+
+    public void consume(final String itemtype, final String json, final String signature)
+    {
+
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+
+                try {
+                    Purchase purchase = new Purchase(itemtype, json, signature);
+                    if(!mHelper.mAsyncInProgress)
+                        mHelper.consumeAsync(purchase, mConsumeFinishedListener);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                    call_error(e.getMessage());
+                }
+
+            }
+        });
+
+
+
+    }
+
+    public void call_success(String mode,String message)
+    {
+        GodotLib.calldeferred(callbackId, "on_success", new Object[]{mode, message});
+    }
+
+    public void call_error(String message)
+    {
+        GodotLib.calldeferred(callbackId, "on_error", new Object[]{message});
+    }
+
+    public void ready()
+    {
+
+        GodotLib.calldeferred(callbackId, "on_ready", new Object[]{});
+    }
     IabHelper.OnConsumeFinishedListener mConsumeFinishedListener =
         new IabHelper.OnConsumeFinishedListener() {
         public void onConsumeFinished(Purchase purchase, IabResult result) {
                 if (result.isSuccess()) {
-                    call_purchase_success(purchase.toString);
+                    call_success("consume",purchase.toString());
                 }   
                 else {
                     call_error(result.getMessage());
@@ -64,78 +148,28 @@ public class GodotBazaar extends Godot.SingletonBase {
                 call_error("{\"status:\"300\",\"message\":\"Failed to query inventory: " + result.getMessage()+"\"");
                 return;
             }
-            String json = "{\"purchaseData\":[";
-            
+            String json = "{\"purchase_data\":[";
             for(Iterator<Purchase> i = inventory.getAllPurchases().iterator(); i.hasNext(); ) {
                 Purchase item = i.next();
-                json +=item.toString()+",";
+                json+="{\"itemtype\":\""+item.getItemType()+"\", \"signature\":\""+item.getSignature()+"\",\"json\":";
+
+                json +=item.toString()+"},";
             }
             
-            json+="],\"skuData\":[";
+            json+="],\"sku_data\":[";
             for(Iterator<SkuDetails> i = inventory.getAllSku().iterator(); i.hasNext(); ) {
                 SkuDetails item = i.next();
                 json +=item.toString()+",";
             }
             json+="]}";
-            call_inventory_callback(json);
+
+
+            call_success("inventory",json);
+
         }
     };
 
-    public void getInventory()
-    {
-        activity.runOnUiThread(new Runnable() {
-            
-            @Override
-            public void run() {
-                mHelper.queryInventoryAsync(mGotInventoryListener);
-            }
-        });
-        
-    }
-    public void purchase(final String sku)
-    {
-        
-        this.payload = Math.random()+"NEGAHNAKON"+ Math.random();
-        final String temppay = this.payload;
-        activity.runOnUiThread(new Runnable() {
-            
-            @Override
-            public void run() {
-                // TODO Auto-generated method stub
-                if(mHelper !=null)
-                    mHelper.flagEndAsync();
-                mHelper.launchPurchaseFlow(activity, sku, 1001,
-                        mPurchaseFinishedListener, temppay);
-            }
-        });
-        
-    }
 
-    public void call_inventory_callback(String message)
-    {
-        GodotLib.calldeferred(callbackId, "inventory_callback", new Object[]{message});     
-    }
-    public void call_purchase_success(String message)
-    {
-        GodotLib.calldeferred(callbackId, "purchase_success", new Object[]{message});   
-    }
-
-    public void call_error(String message)
-    {
-        GodotLib.calldeferred(callbackId, "error", new Object[]{message});
-    }
-
-    public void ready()
-    {
-        GodotLib.calldeferred(callbackId, "ready", new Object[]{});
-    }
-
-    
-    boolean verifyDeveloperPayload(Purchase p) {
-        String payload = p.getDeveloperPayload();
-
-       return this.payload.equals(payload);
-    }
     IabHelper.OnIabPurchaseFinishedListener mPurchaseFinishedListener = new IabHelper.OnIabPurchaseFinishedListener() {
         public void onIabPurchaseFinished(IabResult result, Purchase purchase) {
             
@@ -151,54 +185,25 @@ public class GodotBazaar extends Godot.SingletonBase {
                 call_error("{\"status\":\"300\",\"message\":\"Error purchasing. Authenticity verification failed.\"");
                 return;
             }
-            for(int i = 0 ; i<consumables.length();i++)
-            {
-                if(purchase.getSku().equals(consumables[i]))
-                {
-                    mHelper.consumeAsync(purchase,mConsumeFinishedListener);
-                    break ;
-                    return;
-                }
-            }
-            call_purchase_success(purchase.toString());
 
-            
+            call_success("purchase","{\"json\":"+purchase.toString()+",\"itemtype\":\""+purchase.getItemType()+"\",\"signature\":\""+purchase.getSignature()+"\"}");
 
         }
     };
 
 
-    public void init(String base64EncodedPublicKey,int callid,String[] _consumables)
-    {
-        this.callbackId = callid;
-        mHelper = new IabHelper(activity, base64EncodedPublicKey);
-        consumables = _consumables;
-        mHelper.startSetup(new IabHelper.OnIabSetupFinishedListener() {
-            public void onIabSetupFinished(IabResult result) {
+    boolean verifyDeveloperPayload(Purchase p) {
+        String payload = p.getDeveloperPayload();
 
-                if (!result.isSuccess()) {
-                     call_error("{\"status\":\"300\",\"message\":\"Problem setting up in-app billing: " + result.getMessage()+"\"");
-                    return;
-                }
-
-                if (mHelper == null) return;
-
-                ready();
-            }
-        });
-
+        return this.payload.equals(payload);
     }
-
      protected void onMainActivityResult(int requestCode, int resultCode, Intent data) 
      {
          if (mHelper == null) return;
 
-         // Pass on the activity result to the helper for handling
+
          if (!mHelper.handleActivityResult(requestCode, resultCode, data)) {
-             // not handled, so handle it ourselves (here's where you'd
-             // perform any handling of activity results not related to in-app
-             // billing...
-          
+
          }
          else {
           

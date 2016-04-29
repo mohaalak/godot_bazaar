@@ -13,7 +13,6 @@
  * limitations under the License.
  */
 
-package com.android.godot;
 
 /**
  * Exception thrown when something went wrong with in-app billing.

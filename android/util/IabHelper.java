@@ -13,7 +13,6 @@
  * limitations under the License.
  */
 
-package com.android.godot;
 
 import android.app.Activity;
 import android.app.PendingIntent;

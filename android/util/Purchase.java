@@ -13,7 +13,6 @@
  * limitations under the License.
  */
 
-package com.android.godot;
 
 import org.json.JSONException;
 import org.json.JSONObject;

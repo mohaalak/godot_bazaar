@@ -13,7 +13,6 @@
  * limitations under the License.
  */
 
-package com.android.godot;
 
 /**
  * Represents the result of an in-app billing operation.
